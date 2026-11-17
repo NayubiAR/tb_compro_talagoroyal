@@ -1,0 +1,202 @@
+// Dataset master ATK (simulasi) untuk seeder.
+// Setiap template dikombinasikan brand × varian sehingga menghasilkan >1.000 SKU
+// dengan hierarki multi-satuan yang realistis.
+
+/** Hierarki satuan: [nama, konversi ke satuan terkecil], dari terbesar ke terkecil. */
+export const UNITSETS = {
+  pen: [['Dus', 60], ['Pak', 12], ['Pcs', 1]], // contoh proposal: 1 Dus = 5 Pak = 60 Pcs
+  gross: [['Dus', 144], ['Pak', 12], ['Pcs', 1]],
+  paper: [['Dus', 2500], ['Rim', 500], ['Lembar', 1]],
+  book: [['Dus', 200], ['Pak', 10], ['Pcs', 1]],
+  pak10: [['Dus', 100], ['Pak', 10], ['Pcs', 1]],
+  sheet10: [['Pak', 10], ['Lembar', 1]],
+  sheet20: [['Dus', 200], ['Pak', 20], ['Lembar', 1]],
+  sheet25: [['Pak', 25], ['Lembar', 1]],
+  sheet50: [['Dus', 500], ['Pak', 50], ['Lembar', 1]],
+  envelope: [['Dus', 1000], ['Box', 100], ['Lembar', 1]],
+  roll: [['Dus', 72], ['Slop', 6], ['Roll', 1]],
+  box12: [['Dus', 144], ['Box', 12], ['Pcs', 1]],
+  box: [['Dus', 200], ['Pak', 10], ['Kotak', 1]],
+  dus24: [['Dus', 24], ['Pcs', 1]],
+  dus12: [['Dus', 12], ['Pcs', 1]],
+  dus10: [['Dus', 10], ['Pcs', 1]],
+  battery: [['Dus', 48], ['Pak', 4], ['Pcs', 1]],
+  single: [['Pcs', 1]],
+  bottle: [['Dus', 12], ['Botol', 1]],
+};
+
+const COLORS4 = ['Hitam', 'Biru', 'Merah', 'Hijau'];
+const COLORS6 = ['Merah', 'Biru', 'Hijau', 'Kuning', 'Hitam', 'Putih'];
+const PASTEL = ['Kuning', 'Hijau', 'Pink', 'Biru', 'Oranye', 'Ungu', 'Putih', 'Krem', 'Abu-abu', 'Cokelat'];
+
+/**
+ * Template: name memakai {b}=brand dan {v}=varian. price = harga eceran per satuan terkecil.
+ * pop = tingkat popularitas penjualan (0 = tidak pernah laku → dead stock).
+ */
+export const CATALOG = [
+  {
+    category: 'Kertas',
+    code: 'KRT',
+    items: [
+      { name: 'Kertas HVS {v} {b}', brands: ['SiDU', 'PaperOne', 'Bola Dunia', 'Copy Paper'], variants: [['A4 70gsm', 1], ['A4 80gsm', 1.15], ['F4 70gsm', 1.08], ['F4 80gsm', 1.22], ['A3 80gsm', 2.1]], units: 'paper', price: 110, pop: 9, lead: 5 },
+      { name: 'Kertas Foto Glossy {v} {b}', brands: ['Epson', 'Fotopro'], variants: [['A4 180gsm', 1], ['A4 230gsm', 1.3], ['4R 230gsm', 0.45]], units: 'sheet20', price: 1700, pop: 3 },
+      { name: 'Kertas Folio Bergaris {b}', brands: ['Kiky', 'SiDU', 'Paperline'], variants: [''], units: 'sheet50', price: 300, pop: 5 },
+      { name: 'Kertas Karton Manila {v}', brands: [''], variants: PASTEL.slice(0, 8), units: 'sheet25', price: 1500, pop: 2 },
+      { name: 'Kertas Sticker Label {v} {b}', brands: ['Tom & Jerry', 'Fox'], variants: ['No. 103', 'No. 107', 'No. 121', 'A4 Polos'], units: 'sheet10', price: 1300, pop: 3 },
+      { name: 'Kertas Asturo {v}', brands: [''], variants: PASTEL, units: 'sheet10', price: 1500, pop: 1 },
+      { name: 'Kertas Linen {v} A4', brands: [''], variants: PASTEL, units: 'sheet20', price: 1200, pop: 1 },
+      { name: 'Kertas Lipat Origami {v}', brands: ['Kiky'], variants: ['10x10 cm', '15x15 cm', '20x20 cm'], units: 'pak10', price: 4500, pop: 1 },
+    ],
+  },
+  {
+    category: 'Alat Tulis',
+    code: 'ATL',
+    items: [
+      { name: 'Pulpen {b} 0.5 {v}', brands: ['Standard AE7', 'Joyko GP-265', 'Snowman V-5', 'Kenko K-1', 'Faber-Castell 1423', 'Pilot BPT-P'], variants: COLORS4, units: 'pen', price: 2500, pop: 10 },
+      { name: 'Pulpen Gel {b} {v}', brands: ['Zebra Sarasa', 'Pilot G2', 'Joyko Q-Gel', 'Kenko Gel', 'Uni-ball Signo'], variants: COLORS6, units: 'pen', price: 6000, pop: 5 },
+      { name: 'Pensil {b} {v}', brands: ['Faber-Castell 1990', 'Steadtler Noris', 'Joyko', 'Greebel', 'Kenko'], variants: ['2B', 'HB', '3B', '4B'], units: 'gross', price: 3000, pop: 8 },
+      { name: 'Pensil Mekanik {b} {v}', brands: ['Faber-Castell', 'Pentel', 'Joyko', 'Kenko'], variants: ['0.3 mm', '0.5 mm', '0.7 mm'], units: 'pen', price: 9500, pop: 2 },
+      { name: 'Isi Pensil Mekanik {b} {v}', brands: ['Faber-Castell', 'Pentel', 'Joyko', 'Kenko'], variants: ['0.5 mm 2B', '0.5 mm HB', '0.7 mm 2B'], units: 'box12', price: 4500, pop: 3 },
+      { name: 'Spidol Whiteboard {b} {v}', brands: ['Snowman', 'Artline', 'Joyko', 'Kenko'], variants: COLORS4, units: 'pen', price: 7500, pop: 7 },
+      { name: 'Spidol Permanen {b} {v}', brands: ['Snowman', 'Artline', 'Sakura', 'Kenko'], variants: ['Hitam Kecil', 'Biru Kecil', 'Hitam Besar', 'Merah Besar'], units: 'pen', price: 8000, pop: 4 },
+      { name: 'Stabilo Highlighter {b} {v}', brands: ['Stabilo Boss', 'Kenko', 'Joyko', 'Faber-Castell'], variants: ['Kuning', 'Hijau', 'Pink', 'Oranye', 'Biru', 'Ungu'], units: 'pen', price: 9000, pop: 4 },
+      { name: 'Penghapus {b} {v}', brands: ['Faber-Castell', 'Steadtler', 'Joyko', 'Kenko', 'Greebel'], variants: ['Kecil', 'Besar'], units: 'gross', price: 2000, pop: 6 },
+      { name: 'Rautan {b} {v}', brands: ['Faber-Castell', 'Joyko', 'Kenko', 'Deli'], variants: ['Plastik', 'Besi'], units: 'pen', price: 3500, pop: 4 },
+      { name: 'Correction Pen {b}', brands: ['Kenko KE-108', 'Joyko CP-14', 'Snowman', 'Faber-Castell'], variants: [''], units: 'pen', price: 6500, pop: 5 },
+      { name: 'Correction Tape {b} {v}', brands: ['Kenko', 'Joyko', 'Deli', 'Plus'], variants: ['5 mm x 6 m', '5 mm x 12 m'], units: 'pen', price: 9000, pop: 4 },
+      { name: 'Drawing Pen {b} {v}', brands: ['Snowman', 'Artline', 'Sakura Pigma'], variants: ['0.05', '0.1', '0.2', '0.3', '0.5', '0.8'], units: 'pen', price: 11000, pop: 1 },
+      { name: 'Pulpen Tinta Cair {b} {v}', brands: ['Faster C600', 'Standard Q-Gel', 'Snowman Gel'], variants: COLORS4.slice(0, 3), units: 'pen', price: 3500, pop: 5 },
+    ],
+  },
+  {
+    category: 'Buku & Notes',
+    code: 'BKU',
+    items: [
+      { name: 'Buku Tulis {b} {v}', brands: ['Sinar Dunia', 'Kiky', 'Big Boss', 'Campus', 'Paperline'], variants: [['38 Lembar', 1], ['58 Lembar', 1.4], ['78 Lembar', 1.8], ['100 Lembar', 2.3]], units: 'book', price: 3500, pop: 9 },
+      { name: 'Buku Folio {b} {v}', brands: ['Sinar Dunia', 'Kiky', 'Paperline'], variants: [['100 Halaman', 1], ['200 Halaman', 1.8], ['300 Halaman', 2.5]], units: 'pak10', price: 12000, pop: 4 },
+      { name: 'Buku Kwarto {b} {v}', brands: ['Sinar Dunia', 'Kiky', 'Paperline'], variants: [['100 Halaman', 1], ['200 Halaman', 1.8], ['300 Halaman', 2.5]], units: 'pak10', price: 10000, pop: 3 },
+      { name: 'Sticky Notes {b} {v}', brands: ['Post-it', 'Joyko', 'Kenko', 'Deli'], variants: ['3x3 Kuning', '3x3 Pastel', '2x3 Kuning', '3x5 Kuning', 'Flag Index', '1.5x2 Pastel'], units: 'box12', price: 8500, pop: 5 },
+      { name: 'Buku Kwitansi {b} {v}', brands: ['Paperline', 'Kiky', 'Sidu'], variants: ['Kecil', 'Besar'], units: 'pak10', price: 5000, pop: 4 },
+      { name: 'Nota Kontan {b} {v}', brands: ['Paperline', 'Kiky', 'Sidu'], variants: ['1 Ply', '2 Ply', '3 Ply'], units: 'pak10', price: 5500, pop: 4 },
+      { name: 'Buku Agenda {b} {v}', brands: ['Kiky', 'Paperline', 'Big Boss'], variants: ['A5', 'B5'], units: 'dus24', price: 25000, pop: 1 },
+      { name: 'Buku Ekspedisi {b}', brands: ['Kiky', 'Paperline', 'Sinar Dunia'], variants: [''], units: 'pak10', price: 9000, pop: 2 },
+      { name: 'Buku Kas {b} {v}', brands: ['Kiky', 'Paperline', 'Sinar Dunia'], variants: ['2 Kolom', '4 Kolom'], units: 'pak10', price: 15000, pop: 2 },
+      { name: 'Notebook Spiral {b} {v}', brands: ['Kiky', 'Big Boss', 'Campus', 'Joyko'], variants: ['A5', 'B5', 'A6'], units: 'pak10', price: 14000, pop: 3 },
+      { name: 'Binder Note {b} {v}', brands: ['Kiky', 'Joyko', 'Bantex'], variants: ['A5 Hitam', 'A5 Biru', 'B5 Hitam', 'B5 Biru', 'A5 Pink', 'B5 Abu-abu'], units: 'dus12', price: 32000, pop: 2 },
+      { name: 'Isi Binder (Loose Leaf) {b} {v}', brands: ['Kiky', 'Campus', 'Joyko'], variants: ['A5 Bergaris', 'B5 Bergaris', 'B5 Kotak'], units: 'pak10', price: 9000, pop: 4 },
+    ],
+  },
+  {
+    category: 'Map & Arsip',
+    code: 'MAP',
+    items: [
+      { name: 'Map Plastik Kancing {b} {v}', brands: ['Bantex', 'Joyko', 'Kenko'], variants: ['Folio Merah', 'Folio Biru', 'Folio Hijau', 'Folio Kuning', 'A4 Bening', 'A4 Biru'], units: 'gross', price: 3500, pop: 7 },
+      { name: 'Ordner {b} {v}', brands: ['Bantex', 'Bambi', 'King'], variants: ['Folio Biru', 'Folio Hitam', 'Folio Merah', 'A4 Biru', 'A4 Hitam'], units: 'dus24', price: 27000, pop: 4 },
+      { name: 'Box File {b} {v}', brands: ['Bantex', 'Bambi', 'Kenko'], variants: ['Biru', 'Hitam', 'Merah', 'Hijau'], units: 'dus24', price: 22000, pop: 3 },
+      { name: 'Stopmap Kertas {b} {v}', brands: ['Diamond', 'Kiky'], variants: ['Merah', 'Biru', 'Hijau', 'Kuning', 'Cokelat', 'Pink'], units: 'sheet50', price: 1200, pop: 6 },
+      { name: 'Clear Holder {b} {v}', brands: ['Bantex', 'Joyko', 'Kenko'], variants: ['20 Lembar Hitam', '40 Lembar Hitam', '60 Lembar Biru', '20 Lembar Biru'], units: 'dus12', price: 18000, pop: 3 },
+      { name: 'Map Snelhecter {b} {v}', brands: ['Diamond', 'Bantex'], variants: ['Merah', 'Biru', 'Hijau', 'Kuning', 'Pink', 'Cokelat'], units: 'sheet50', price: 2500, pop: 4 },
+      { name: 'Document Keeper {b} {v}', brands: ['Bantex', 'Joyko', 'Kenko'], variants: ['A4', 'F4', 'A5'], units: 'dus12', price: 30000, pop: 1 },
+      { name: 'Amplop Cokelat {b} {v}', brands: ['Paperline', 'Jaya'], variants: [['Kabinet', 1], ['Folio', 1.6], ['A4', 1.4], ['Besar', 2]], units: 'envelope', price: 600, pop: 6 },
+      { name: 'Amplop Putih {b} {v}', brands: ['Paperline', 'Jaya', 'Kiky'], variants: [['No. 90', 1], ['No. 104', 1.2], ['No. 110', 1.4], ['Kop Polos', 1.6]], units: 'envelope', price: 300, pop: 7 },
+      { name: 'Map Gantung {b} {v}', brands: ['Bantex', 'King'], variants: ['Hijau', 'Biru', 'Merah', 'Kuning'], units: 'dus24', price: 9000, pop: 1 },
+      { name: 'Map Batik {b} {v}', brands: ['Diamond', 'Kiky'], variants: ['Cokelat', 'Biru', 'Merah', 'Hijau'], units: 'sheet25', price: 4500, pop: 2 },
+    ],
+  },
+  {
+    category: 'Perekat & Lem',
+    code: 'PRK',
+    items: [
+      { name: 'Lem Kertas Stick {b} {v}', brands: ['UHU', 'Kenko', 'Joyko', 'Glue Stick Deli'], variants: [['8 gr', 1], ['15 gr', 1.6], ['25 gr', 2.4]], units: 'box12', price: 4500, pop: 6 },
+      { name: 'Lem Cair {b} {v}', brands: ['Fox', 'UHU', 'Kenko'], variants: [['35 ml', 1], ['50 ml', 1.4]], units: 'box12', price: 4000, pop: 4 },
+      { name: 'Double Tape {b} {v}', brands: ['Nachi', 'Daimaru', 'Joyko'], variants: [['1/2 inch', 1], ['1 inch', 1.8], ['2 inch', 3.2], ['Foam 1 inch', 2.5]], units: 'roll', price: 4500, pop: 5 },
+      { name: 'Lakban {v} {b}', brands: ['Nachi', 'Daimaru', 'Unimax'], variants: [['Bening 2 inch', 1], ['Cokelat 2 inch', 1], ['Bening 3 inch', 1.5], ['Cokelat 3 inch', 1.5]], units: 'roll', price: 12000, pop: 7 },
+      { name: 'Selotip {b} {v}', brands: ['Nachi', 'Daimaru', 'Joyko'], variants: [['1/2 inch', 1], ['3/4 inch', 1.3], ['1 inch', 1.6]], units: 'roll', price: 3000, pop: 5 },
+      { name: 'Masking Tape {b} {v}', brands: ['Nachi', 'Daimaru', 'Joyko'], variants: [['1/2 inch', 1], ['1 inch', 1.7], ['2 inch', 3]], units: 'roll', price: 4500, pop: 3 },
+      { name: 'Lakban Kain Jilid {b} {v}', brands: ['Nachi', 'Daimaru'], variants: ['Hitam 1 inch', 'Hitam 2 inch', 'Biru 2 inch', 'Merah 2 inch', 'Hijau 2 inch', 'Kuning 2 inch'], units: 'roll', price: 14000, pop: 3 },
+      { name: 'Lem Korea {b} {v}', brands: ['Fox', 'Aica'], variants: [['70 gr', 1], ['150 gr', 1.8]], units: 'bottle', price: 18000, pop: 1 },
+      { name: 'Isi Lem Tembak {v}', brands: [''], variants: ['Kecil (isi 10)', 'Besar (isi 10)'], units: 'pak10', price: 1500, pop: 2 },
+    ],
+  },
+  {
+    category: 'Alat Potong & Jilid',
+    code: 'PTG',
+    items: [
+      { name: 'Gunting {b} {v}', brands: ['Joyko', 'Kenko', 'Deli', 'Gunindo'], variants: [['Kecil', 1], ['Sedang', 1.4], ['Besar', 1.9]], units: 'dus12', price: 8000, pop: 3 },
+      { name: 'Cutter {b} {v}', brands: ['Kenko', 'Joyko', 'NT Cutter', 'Deli'], variants: [['Kecil A-300', 1], ['Besar L-500', 1.8]], units: 'dus12', price: 7000, pop: 3 },
+      { name: 'Isi Cutter {b} {v}', brands: ['Kenko', 'Joyko', 'NT Cutter', 'Deli'], variants: [['Kecil', 1], ['Besar', 1.6]], units: 'box12', price: 5000, pop: 3 },
+      { name: 'Stapler {b} {v}', brands: ['Max', 'Joyko', 'Kenko', 'Etona'], variants: [['HD-10', 1], ['HD-50', 2.5], ['HD-12', 3.5], ['HD-23', 4]], units: 'dus12', price: 14000, pop: 3 },
+      { name: 'Isi Staples {b} {v}', brands: ['Max', 'Joyko', 'Kenko', 'Etona'], variants: [['No. 10', 1], ['No. 3', 1.6], ['23/10', 3], ['23/13', 3.5]], units: 'box', price: 2500, pop: 8 },
+      { name: 'Paper Clip {b} {v}', brands: ['Joyko', 'Kenko', 'Trigonal'], variants: [['No. 1', 1], ['No. 3', 1.1], ['No. 5', 1.4]], units: 'box', price: 2500, pop: 4 },
+      { name: 'Binder Clip {b} {v}', brands: ['Joyko', 'Kenko', 'Deli'], variants: [['No. 105', 1], ['No. 107', 1.2], ['No. 111', 1.4], ['No. 155', 1.8], ['No. 200', 2.4], ['No. 260', 3.2], ['No. 280', 4]], units: 'box12', price: 5000, pop: 5 },
+      { name: 'Pembolong Kertas {b} {v}', brands: ['Max', 'Joyko', 'Kenko'], variants: [['No. 30', 1], ['No. 85', 2.5]], units: 'dus12', price: 22000, pop: 1 },
+      { name: 'Ring Spiral Jilid {b} {v}', brands: ['Bindex', 'Joyko', 'Deli'], variants: ['6 mm', '8 mm', '10 mm', '12 mm', '14 mm', '16 mm', '20 mm', '25 mm'], units: 'pak10', price: 1500, pop: 2 },
+      { name: 'Cover Jilid Mika {b} {v}', brands: ['Bindex', 'Joyko', 'Kenko'], variants: ['A4 Bening', 'F4 Bening', 'A4 Biru'], units: 'sheet50', price: 1200, pop: 3 },
+      { name: 'Push Pin {b} {v}', brands: ['Joyko', 'Kenko'], variants: ['Warna', 'Bulat'], units: 'box', price: 5000, pop: 1 },
+      { name: 'Staple Remover {b}', brands: ['Joyko', 'Kenko', 'Max'], variants: [''], units: 'dus12', price: 6500, pop: 1 },
+    ],
+  },
+  {
+    category: 'Tinta & Toner',
+    code: 'TNT',
+    items: [
+      { name: 'Tinta Epson {v}', brands: [''], variants: ['003 Black', '003 Cyan', '003 Magenta', '003 Yellow', '664 Black', '664 Cyan', '664 Magenta', '664 Yellow', '001 Black', '001 Cyan', '001 Magenta', '001 Yellow'], units: 'bottle', price: 85000, pop: 4, lead: 7 },
+      { name: 'Tinta Canon GI-790 {v}', brands: [''], variants: ['Black', 'Cyan', 'Magenta', 'Yellow'], units: 'bottle', price: 95000, pop: 2, lead: 7 },
+      { name: 'Tinta Brother BTD60 / BT5000 {v}', brands: [''], variants: ['Black', 'Cyan', 'Magenta', 'Yellow'], units: 'bottle', price: 90000, pop: 1, lead: 7 },
+      { name: 'Tinta Refill {b} 100 ml {v}', brands: ['Blueprint', 'Data Print', 'Fusion'], variants: ['Black', 'Cyan', 'Magenta', 'Yellow'], units: 'bottle', price: 25000, pop: 3 },
+      { name: 'Toner {v}', brands: [''], variants: ['HP 85A', 'HP 79A', 'HP 107A', 'Canon 325', 'Canon 337', 'Brother TN-2380', 'Brother TN-1000'], units: 'single', price: 350000, pop: 1, lead: 10 },
+      { name: 'Tinta Stempel {b} {v}', brands: ['Artline', 'Horse', 'Joyko'], variants: ['Ungu', 'Biru', 'Hitam'], units: 'bottle', price: 9000, pop: 2 },
+      { name: 'Tinta Isi Ulang Spidol Whiteboard {b} {v}', brands: ['Snowman', 'Artline'], variants: ['Hitam', 'Biru', 'Merah', 'Hijau'], units: 'bottle', price: 22000, pop: 2 },
+      { name: 'Cartridge HP {v}', brands: [''], variants: ['680 Black', '680 Color', '682 Black', '682 Color'], units: 'single', price: 165000, pop: 2, lead: 7 },
+      { name: 'Ribbon Printer {v}', brands: [''], variants: ['Epson LX-310', 'Epson LQ-2190', 'Epson ERC-38'], units: 'dus12', price: 32000, pop: 1 },
+    ],
+  },
+  {
+    category: 'Kalkulator & Elektronik',
+    code: 'ELK',
+    items: [
+      { name: 'Kalkulator {b} {v}', brands: ['Citizen', 'Casio', 'Joyko'], variants: [['8 Digit Saku', 1], ['12 Digit Meja', 2.2], ['Scientific', 3.5], ['14 Digit Check', 3], ['12 Digit Printing', 9]], units: 'dus10', price: 55000, pop: 1, lead: 7 },
+      { name: 'Baterai {b} {v}', brands: ['ABC', 'Energizer', 'Panasonic'], variants: [['AA', 1], ['AAA', 1], ['9V', 4], ['CR2032', 2]], units: 'battery', price: 5000, pop: 6 },
+      { name: 'Flashdisk {b} {v}', brands: ['SanDisk', 'Kingston', 'Toshiba'], variants: [['16 GB', 1], ['32 GB', 1.3], ['64 GB', 1.8], ['128 GB', 3]], units: 'dus10', price: 60000, pop: 2, lead: 7 },
+      { name: 'Mouse {b} {v}', brands: ['Logitech', 'Robot', 'Rexus'], variants: [['USB', 1], ['Wireless', 1.8]], units: 'dus10', price: 65000, pop: 1, lead: 7 },
+      { name: 'Plastik Laminating {v}', brands: [''], variants: ['KTP (isi 100)', 'A4 (isi 100)', 'F4 (isi 100)', 'A3 (isi 100)'], units: 'dus10', price: 95000, pop: 1 },
+      { name: 'Kabel Data {b} {v}', brands: ['Robot', 'Vivan', 'Anker'], variants: [['Micro USB', 1], ['Type-C', 1.3]], units: 'dus10', price: 30000, pop: 2 },
+    ],
+  },
+  {
+    category: 'Perlengkapan Kantor',
+    code: 'KTR',
+    items: [
+      { name: 'Bantalan Stempel {b} {v}', brands: ['Artline', 'Horse'], variants: ['Ungu', 'Biru', 'Hitam'], units: 'dus12', price: 15000, pop: 2 },
+      { name: 'Papan Jalan (Clipboard) {b} {v}', brands: ['Bantex', 'Joyko'], variants: [['Folio', 1], ['A4', 0.9]], units: 'dus12', price: 15000, pop: 2 },
+      { name: 'Penggaris Plastik {b} {v}', brands: ['Butterfly', 'Joyko', 'Kenko'], variants: [['15 cm', 1], ['20 cm', 1.2], ['30 cm', 1.6], ['50 cm', 2.8]], units: 'box12', price: 2500, pop: 4 },
+      { name: 'Penggaris Besi {b} {v}', brands: ['Butterfly', 'Kenko'], variants: [['30 cm', 1], ['50 cm', 1.6], ['100 cm', 3]], units: 'dus12', price: 9000, pop: 1 },
+      { name: 'Name Tag {v}', brands: [''], variants: ['Plastik Biru', 'Plastik Merah', 'Plastik Hijau', 'Plastik Hitam', 'Kristal Bening', 'Kristal Biru'], units: 'pak10', price: 3500, pop: 2 },
+      { name: 'Tali ID Card {v}', brands: [''], variants: ['Biru', 'Merah', 'Hitam', 'Hijau', 'Kuning', 'Ungu'], units: 'pak10', price: 4000, pop: 2 },
+      { name: 'Tempat Pensil Meja {b} {v}', brands: ['Joyko', 'Kenko', 'Deli'], variants: ['Plastik', 'Besi Jaring', 'Putar 4 Sekat'], units: 'dus12', price: 18000, pop: 1 },
+      { name: 'Papan Tulis Whiteboard {v}', brands: [''], variants: [['40x60 cm', 1], ['60x90 cm', 1.8], ['90x120 cm', 3], ['120x240 cm', 6]], units: 'single', price: 95000, pop: 1, lead: 7 },
+      { name: 'Penghapus Whiteboard {b}', brands: ['Joyko', 'Kenko', 'Snowman'], variants: [''], units: 'dus12', price: 9000, pop: 2 },
+      { name: 'Kertas Thermal Kasir {b} {v}', brands: ['Paperline', 'Bluesky'], variants: [['57x30 mm', 1], ['57x47 mm', 1.4], ['80x80 mm', 2.6]], units: 'dus10', price: 4500, pop: 4 },
+      { name: 'Tray Dokumen {b} {v}', brands: ['Bantex', 'Kenko'], variants: ['1 Susun', '2 Susun', '3 Susun'], units: 'dus12', price: 35000, pop: 1 },
+      { name: 'Kalender Meja {v}', brands: [''], variants: ['Polos', 'Ring Spiral'], units: 'dus24', price: 15000, pop: 1 },
+    ],
+  },
+  {
+    category: 'Perlengkapan Sekolah',
+    code: 'SKL',
+    items: [
+      { name: 'Buku Gambar {b} {v}', brands: ['Kiky', 'Sinar Dunia', 'Paperline'], variants: [['A4', 1], ['A3', 1.8], ['Sketch A5', 0.9]], units: 'pak10', price: 6000, pop: 6 },
+      { name: 'Krayon {b} {v}', brands: ['Titi', 'Greebel', 'Faber-Castell'], variants: [['12 Warna', 1], ['24 Warna', 1.8], ['36 Warna', 2.6]], units: 'dus12', price: 18000, pop: 3 },
+      { name: 'Pensil Warna {b} {v}', brands: ['Faber-Castell', 'Titi', 'Greebel', 'Joyko'], variants: [['12 Warna', 1], ['24 Warna', 1.9], ['36 Warna', 2.8]], units: 'dus12', price: 22000, pop: 4 },
+      { name: 'Cat Air {b} {v}', brands: ['Faber-Castell', 'Greebel', 'Titi'], variants: [['12 Warna', 1], ['24 Warna', 1.7]], units: 'dus12', price: 24000, pop: 1 },
+      { name: 'Kuas Lukis {b} No. {v}', brands: ['V-Tec', 'Lyra'], variants: ['2', '4', '6', '8', '10', '12'], units: 'pak10', price: 4500, pop: 1 },
+      { name: 'Jangka {b}', brands: ['Butterfly', 'Joyko', 'Kenko'], variants: [''], units: 'dus12', price: 12000, pop: 2 },
+      { name: 'Busur Derajat {b}', brands: ['Butterfly', 'Joyko'], variants: [''], units: 'box12', price: 2500, pop: 2 },
+      { name: 'Penggaris Set Segitiga {b}', brands: ['Butterfly', 'Joyko', 'Kenko'], variants: [''], units: 'dus12', price: 9000, pop: 2 },
+      { name: 'Kotak Pensil {b} {v}', brands: ['Joyko', 'Kenko', 'Greebel'], variants: ['Kain Polos', 'Karakter', 'Kaleng', 'Silikon'], units: 'dus12', price: 22000, pop: 2 },
+      { name: 'Plastisin {b} {v}', brands: ['Greebel', 'Titi'], variants: [['8 Warna', 1], ['12 Warna', 1.4]], units: 'dus12', price: 15000, pop: 1 },
+      { name: 'Sampul Buku {v}', brands: [''], variants: ['Plastik Tulis Kecil', 'Plastik Tulis Besar', 'Plastik Folio', 'Cokelat Kertas'], units: 'sheet50', price: 700, pop: 4 },
+      { name: 'Label Nama {b} {v}', brands: ['Tom & Jerry', 'Fox'], variants: ['No. 98', 'No. 99', 'No. 101'], units: 'sheet10', price: 2000, pop: 2 },
+    ],
+  },
+];

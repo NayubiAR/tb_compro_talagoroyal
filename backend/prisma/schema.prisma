@@ -1,0 +1,551 @@
+// Skema basis data Talago Royal.
+// Prinsip desain:
+//  - Stok SELALU disimpan dalam satuan terkecil (base unit, mis. Pcs/Lembar) sebagai integer,
+//    sehingga konversi Dus/Pak/Pcs tidak pernah menimbulkan pembulatan atau selisih.
+//  - Semua nilai uang disimpan sebagai integer Rupiah (Rupiah tidak memakai sen).
+//  - Setiap perubahan stok tercatat di tabel ledger `stock_movements` (append-only).
+//  - Data transaksi (PO, faktur, penjualan) menyimpan snapshot harga & satuan saat transaksi.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Pengguna & Mitra ─────────────────────────────
+
+enum Role {
+  OWNER // Pemilik toko (manajemen)
+  ADMIN // Staf toko: gudang / kasir / operator cetak
+  B2B // Mitra institusi
+  CUSTOMER // Pelanggan umum
+}
+
+enum PartnerStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum InstitutionType {
+  SEKOLAH
+  KANTOR
+  INSTANSI
+  PERUSAHAAN
+  LAINNYA
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String    @db.VarChar(120)
+  email        String    @unique @db.VarChar(160)
+  phone        String?   @db.VarChar(30)
+  passwordHash String    @db.VarChar(100)
+  role         Role
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  partner       Partner?
+  printJobs     PrintJob[]
+  notifications Notification[]
+  movements     StockMovement[]
+  receipts      StockReceipt[]
+  opnames       StockOpname[]
+  sales         Sale[]
+  auditLogs     AuditLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model PartnerLevel {
+  id              Int       @id @default(autoincrement())
+  name            String    @unique @db.VarChar(40)
+  discountPercent Float     @default(0)
+  description     String?   @db.VarChar(255)
+  partners        Partner[]
+
+  @@map("partner_levels")
+}
+
+model Partner {
+  id              Int             @id @default(autoincrement())
+  userId          Int             @unique
+  user            User            @relation(fields: [userId], references: [id])
+  institutionName String          @db.VarChar(160)
+  institutionType InstitutionType
+  npwp            String?         @db.VarChar(30)
+  address         String          @db.VarChar(255)
+  status          PartnerStatus   @default(PENDING)
+  levelId         Int?
+  level           PartnerLevel?   @relation(fields: [levelId], references: [id])
+  paymentTermDays Int             @default(30) // termin pembayaran (TOP) dalam hari
+  creditLimit     Int             @default(0) // batas piutang, 0 = tanpa batas
+  verifiedAt      DateTime?
+  rejectionReason String?         @db.VarChar(255)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  orders   PurchaseOrder[]
+  invoices Invoice[]
+
+  @@index([status])
+  @@map("partners")
+}
+
+// ───────────────────────────── Inventaris Cerdas ─────────────────────────────
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique @db.VarChar(80)
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id           Int      @id @default(autoincrement())
+  sku          String   @unique @db.VarChar(40)
+  name         String   @db.VarChar(160)
+  description  String?  @db.Text
+  categoryId   Int
+  category     Category @relation(fields: [categoryId], references: [id])
+  baseUnit     String   @db.VarChar(20) // nama satuan terkecil, mis. "Pcs"
+  stock        Int      @default(0) // dalam satuan terkecil
+  costPrice    Int      @default(0) // HPP rata-rata per satuan terkecil (Rp)
+  reorderPoint Int      @default(0) // batas minimum stok (satuan terkecil)
+  leadTimeDays Int      @default(3) // estimasi waktu pasokan datang
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  units        ProductUnit[]
+  priceTiers   PriceTier[]
+  movements    StockMovement[]
+  saleItems    SaleItem[]
+  orderItems   PurchaseOrderItem[]
+  receiptItems StockReceiptItem[]
+  opnameItems  StockOpnameItem[]
+
+  @@index([categoryId])
+  @@index([name])
+  @@map("products")
+}
+
+// Hierarki multi-satuan. Contoh: Dus=60, Pak=12, Pcs=1 (1 Dus = 5 Pak = 60 Pcs).
+model ProductUnit {
+  id         Int     @id @default(autoincrement())
+  productId  Int
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name       String  @db.VarChar(20)
+  conversion Int // jumlah satuan terkecil dalam 1 satuan ini
+  price      Int // harga jual eceran per satuan ini (Rp)
+
+  @@unique([productId, name])
+  @@map("product_units")
+}
+
+// Harga bertingkat (tiering) khusus mitra B2B, dihitung per satuan terkecil.
+model PriceTier {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  minQty    Int // ambang minimal pembelian (satuan terkecil)
+  unitPrice Int // harga per satuan terkecil
+
+  @@unique([productId, minQty])
+  @@map("price_tiers")
+}
+
+enum MovementType {
+  RECEIPT // penerimaan pasokan
+  SALE // penjualan eceran (kasir)
+  B2B_ORDER // pengiriman pesanan mitra
+  ADJUSTMENT // stok awal / stock opname
+  RETURN // pengembalian stok (pembatalan pesanan)
+}
+
+// Ledger mutasi stok (append-only) — sumber riwayat keluar-masuk barang.
+model StockMovement {
+  id           Int          @id @default(autoincrement())
+  productId    Int
+  product      Product      @relation(fields: [productId], references: [id])
+  type         MovementType
+  qty          Int // bertanda: + masuk, - keluar (satuan terkecil)
+  balanceAfter Int
+  unitName     String?      @db.VarChar(20) // satuan saat diinput
+  unitQty      Int?
+  refType      String?      @db.VarChar(20)
+  refId        Int?
+  refCode      String?      @db.VarChar(40)
+  note         String?      @db.VarChar(255)
+  userId       Int?
+  user         User?        @relation(fields: [userId], references: [id])
+  createdAt    DateTime     @default(now())
+
+  @@index([productId, createdAt])
+  @@index([type, createdAt])
+  @@map("stock_movements")
+}
+
+model StockReceipt {
+  id        Int                @id @default(autoincrement())
+  code      String             @unique @db.VarChar(40)
+  supplier  String?            @db.VarChar(120)
+  reference String?            @db.VarChar(60) // no. surat jalan / faktur pemasok
+  note      String?            @db.VarChar(255)
+  userId    Int
+  user      User               @relation(fields: [userId], references: [id])
+  createdAt DateTime           @default(now())
+  items     StockReceiptItem[]
+
+  @@map("stock_receipts")
+}
+
+model StockReceiptItem {
+  id        Int          @id @default(autoincrement())
+  receiptId Int
+  receipt   StockReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product      @relation(fields: [productId], references: [id])
+  unitName  String       @db.VarChar(20)
+  unitQty   Int
+  baseQty   Int
+  unitCost  Int          @default(0) // harga beli per satuan yang diinput
+
+  @@map("stock_receipt_items")
+}
+
+model StockOpname {
+  id        Int               @id @default(autoincrement())
+  code      String            @unique @db.VarChar(40)
+  note      String?           @db.VarChar(255)
+  userId    Int
+  user      User              @relation(fields: [userId], references: [id])
+  createdAt DateTime          @default(now())
+  items     StockOpnameItem[]
+
+  @@map("stock_opnames")
+}
+
+model StockOpnameItem {
+  id         Int         @id @default(autoincrement())
+  opnameId   Int
+  opname     StockOpname @relation(fields: [opnameId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product     @relation(fields: [productId], references: [id])
+  systemQty  Int
+  countedQty Int
+  difference Int
+
+  @@map("stock_opname_items")
+}
+
+// ───────────────────────────── Penjualan Eceran (Kasir) ─────────────────────────────
+
+enum PaymentMethod {
+  CASH
+  QRIS
+  TRANSFER
+}
+
+model Sale {
+  id            Int           @id @default(autoincrement())
+  code          String        @unique @db.VarChar(40)
+  cashierId     Int
+  cashier       User          @relation(fields: [cashierId], references: [id])
+  total         Int
+  paymentMethod PaymentMethod
+  paidAmount    Int
+  changeAmount  Int           @default(0)
+  note          String?       @db.VarChar(255)
+  createdAt     DateTime      @default(now())
+  items         SaleItem[]
+
+  @@index([createdAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id         Int     @id @default(autoincrement())
+  saleId     Int
+  sale       Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product @relation(fields: [productId], references: [id])
+  unitName   String  @db.VarChar(20)
+  unitQty    Int
+  conversion Int
+  baseQty    Int
+  unitPrice  Int // harga per satuan yang dijual
+  subtotal   Int
+
+  @@map("sale_items")
+}
+
+// ───────────────────────────── Portal B2B ─────────────────────────────
+
+enum OrderStatus {
+  SUBMITTED // diajukan mitra, menunggu verifikasi
+  APPROVED // diverifikasi, stok dipotong, faktur terbit
+  READY // siap diambil
+  COMPLETED // sudah diambil
+  REJECTED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id                   Int                 @id @default(autoincrement())
+  poNumber             String              @unique @db.VarChar(40)
+  partnerId            Int
+  partner              Partner             @relation(fields: [partnerId], references: [id])
+  partnerRef           String?             @db.VarChar(60) // no. PO internal instansi
+  status               OrderStatus         @default(SUBMITTED)
+  subtotal             Int
+  levelName            String?             @db.VarChar(40)
+  levelDiscountPercent Float               @default(0)
+  discount             Int                 @default(0)
+  taxPercent           Float               @default(0)
+  tax                  Int                 @default(0)
+  total                Int
+  note                 String?             @db.VarChar(500)
+  rejectionReason      String?             @db.VarChar(255)
+  createdById          Int
+  approvedById         Int?
+  approvedAt           DateTime?
+  readyAt              DateTime?
+  completedAt          DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  items                PurchaseOrderItem[]
+  invoice              Invoice?
+
+  @@index([status, createdAt])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              Int           @id @default(autoincrement())
+  poId            Int
+  po              PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  productId       Int
+  product         Product       @relation(fields: [productId], references: [id])
+  sku             String        @db.VarChar(40)
+  productName     String        @db.VarChar(160)
+  unitName        String        @db.VarChar(20)
+  unitQty         Int
+  conversion      Int
+  baseQty         Int
+  retailUnitPrice Int // harga eceran per satuan terkecil (pembanding)
+  tierUnitPrice   Int // harga tiering per satuan terkecil
+  subtotal        Int
+
+  @@map("purchase_order_items")
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  VOID
+}
+
+model Invoice {
+  id             Int              @id @default(autoincrement())
+  invoiceNumber  String           @unique @db.VarChar(40)
+  poId           Int              @unique
+  po             PurchaseOrder    @relation(fields: [poId], references: [id])
+  partnerId      Int
+  partner        Partner          @relation(fields: [partnerId], references: [id])
+  issueDate      DateTime
+  dueDate        DateTime
+  subtotal       Int
+  discount       Int
+  tax            Int
+  total          Int
+  amountPaid     Int              @default(0)
+  status         InvoiceStatus    @default(UNPAID)
+  paidAt         DateTime?
+  lastReminderAt DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  payments       InvoicePayment[]
+
+  @@index([status, dueDate])
+  @@map("invoices")
+}
+
+model InvoicePayment {
+  id           Int           @id @default(autoincrement())
+  invoiceId    Int
+  invoice      Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount       Int
+  method       PaymentMethod
+  reference    String?       @db.VarChar(80)
+  note         String?       @db.VarChar(255)
+  paidAt       DateTime
+  recordedById Int
+  createdAt    DateTime      @default(now())
+
+  @@map("invoice_payments")
+}
+
+// ───────────────────────────── Cloud Printing ─────────────────────────────
+
+enum PrintStatus {
+  DRAFT // berkas diunggah, belum checkout
+  AWAITING_PAYMENT // menunggu pembayaran QRIS
+  QUEUED // lunas, masuk antrean (Menunggu)
+  PRINTING // Sedang Dicetak
+  READY // Siap Diambil
+  COMPLETED // Sudah diambil
+  CANCELLED
+  EXPIRED // pembayaran kedaluwarsa
+}
+
+enum ColorMode {
+  BW
+  COLOR
+}
+
+enum PaperSize {
+  A4
+  F4
+  A3
+}
+
+enum Orientation {
+  PORTRAIT
+  LANDSCAPE
+}
+
+enum BindingType {
+  NONE
+  LAKBAN
+  SPIRAL
+}
+
+model PrintJob {
+  id            Int         @id @default(autoincrement())
+  code          String      @unique @db.VarChar(40)
+  customerId    Int
+  customer      User        @relation(fields: [customerId], references: [id])
+  originalName  String      @db.VarChar(255)
+  storedName    String      @db.VarChar(255)
+  mimeType      String      @db.VarChar(120)
+  fileSize      Int
+  pageCount     Int
+  pageCountNote String?     @db.VarChar(120) // metode perhitungan halaman
+  pageRange     String?     @db.VarChar(120)
+  pagesToPrint  Int         @default(0)
+  colorMode     ColorMode   @default(BW)
+  paperSize     PaperSize   @default(A4)
+  orientation   Orientation @default(PORTRAIT)
+  duplex        Boolean     @default(false)
+  copies        Int         @default(1)
+  binding       BindingType @default(NONE)
+  notes         String?     @db.VarChar(500)
+  pricePerPage  Int         @default(0)
+  printCost     Int         @default(0)
+  bindingCost   Int         @default(0)
+  totalPrice    Int         @default(0)
+  status        PrintStatus @default(DRAFT)
+  queueNumber   Int?
+  queueDate     String?     @db.VarChar(10) // YYYY-MM-DD (zona waktu toko)
+  pickupCode    String?     @db.VarChar(6)
+  paidAt        DateTime?
+  startedAt     DateTime?
+  readyAt       DateTime?
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+  fileDeletedAt DateTime?
+  handledById   Int?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  payments      Payment[]
+
+  @@index([status, createdAt])
+  @@index([customerId, createdAt])
+  @@map("print_jobs")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  EXPIRED
+  FAILED
+}
+
+model Payment {
+  id              Int           @id @default(autoincrement())
+  orderId         String        @unique @db.VarChar(60) // order_id di payment gateway
+  provider        String        @db.VarChar(20) // MIDTRANS | MOCK
+  method          String        @default("QRIS") @db.VarChar(20)
+  amount          Int
+  status          PaymentStatus @default(PENDING)
+  qrString        String?       @db.Text
+  qrUrl           String?       @db.VarChar(500)
+  expiresAt       DateTime
+  paidAt          DateTime?
+  rawNotification Json?
+  printJobId      Int
+  printJob        PrintJob      @relation(fields: [printJobId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status, expiresAt])
+  @@map("payments")
+}
+
+// ───────────────────────────── Pendukung ─────────────────────────────
+
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String    @db.VarChar(40)
+  title     String    @db.VarChar(160)
+  body      String    @db.VarChar(500)
+  link      String?   @db.VarChar(200)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String   @db.VarChar(60)
+  entity    String   @db.VarChar(40)
+  entityId  Int?
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+model Setting {
+  key       String   @id @db.VarChar(60)
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// Penomoran dokumen (PO, faktur, antrean) yang aman dari race condition.
+model Counter {
+  key   String @id @db.VarChar(60)
+  value Int
+
+  @@map("counters")
+}
