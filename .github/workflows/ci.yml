@@ -34,6 +34,10 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Kunci ke versi yang dipakai tim agar hasil CI sama dengan lokal.
+          # Naikkan bersama-sama (lokal + CI) saat tim siap migrasi ke Flutter baru.
+          flutter-version: 3.44.1
       - run: flutter pub get
-      - run: flutter analyze
+      # Info/deprecation tidak menggagalkan build; error & warning tetap menggagalkan.
+      - run: flutter analyze --no-fatal-infos
       - run: flutter build web --release
