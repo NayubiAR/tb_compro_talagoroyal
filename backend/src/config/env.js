@@ -13,6 +13,9 @@ if (!jwtSecret) throw new Error('JWT_SECRET wajib diisi (lihat .env.example)');
 if (nodeEnv === 'production' && jwtSecret.length < 32) {
   throw new Error('JWT_SECRET minimal 32 karakter untuk production');
 }
+if (nodeEnv === 'production' && jwtSecret.includes('dev-only')) {
+  console.warn('[env] PERINGATAN: JWT_SECRET masih nilai bawaan docker-compose — ganti di server production!');
+}
 
 const port = num('PORT', 4000);
 const provider = (process.env.PAYMENT_PROVIDER || 'mock').toLowerCase();

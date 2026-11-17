@@ -145,7 +145,9 @@ Proposal menyebut keduanya. Implementasi memakai **Prisma** sehingga cukup mengg
    └── Redis (managed / container)
 ```
 
-Langkah rilis: `npm ci && npx prisma migrate deploy && npm start` (backend), `flutter build web --release` (frontend). Set `NODE_ENV=production`, `JWT_SECRET` acak ≥32 karakter, `PAYMENT_PROVIDER=midtrans`, `CORS_ORIGINS` ke domain frontend, dan **jangan jalankan seeder** di production.
+Implementasinya sudah tersedia sebagai kontainer: `docker-compose.yml` menjalankan `mysql`, `redis`, `backend` (migrasi otomatis saat start), dan `frontend` (Nginx yang menyajikan Flutter Web sekaligus reverse proxy `/api` & `/socket.io`). Pipeline GitHub Actions (`.github/workflows/ci-cd.yml`) menguji, mempublikasikan image ke GHCR, lalu men-deploy ke server via SSH. Langkah lengkap: [CARA_MENJALANKAN.md](CARA_MENJALANKAN.md) bagian D.
+
+Di production: `JWT_SECRET` acak ≥32 karakter, `PAYMENT_PROVIDER=midtrans`, `SEED_IF_EMPTY=false`, dan port MySQL/Redis tidak dibuka ke internet.
 
 ## 6. Ringkasan endpoint API
 
