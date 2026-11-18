@@ -1,20 +1,81 @@
-# Dependensi pengembangan untuk yang tidak memakai Laragon.
-# Jalankan: docker compose up -d   → MySQL di localhost:3316 (root tanpa password), Redis di localhost:6379
+# Talago Royal — seluruh aplikasi dalam satu perintah:
+#   docker compose up -d --build        → buka http://localhost:8080
+#
+# Konfigurasi opsional lewat file .env di folder ini (lihat .env.example).
+# Port MySQL/Redis sengaja tidak memakai 3306/3316/6379 agar tidak bentrok dengan Laragon.
+name: talago-royal
+
 services:
   mysql:
     image: mysql:8.0
+    restart: unless-stopped
     environment:
-      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-talago_root}
       MYSQL_DATABASE: talago_royal
+      TZ: Asia/Jakarta
     ports:
-      - "3316:3306"
+      - "${MYSQL_PORT:-3317}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        WITH_LIBREOFFICE: ${WITH_LIBREOFFICE:-false}
+    image: ${IMAGE_PREFIX:-talago-royal}/backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-talago_root}@mysql:3306/talago_royal
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-only-ganti-secret-ini-di-server-production-0000}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      PAYMENT_EXPIRY_MINUTES: ${PAYMENT_EXPIRY_MINUTES:-15}
+      MIDTRANS_SERVER_KEY: ${MIDTRANS_SERVER_KEY:-}
+      MIDTRANS_IS_PRODUCTION: ${MIDTRANS_IS_PRODUCTION:-false}
+      FILE_RETENTION_DAYS: ${FILE_RETENTION_DAYS:-7}
+      SEED_IF_EMPTY: ${SEED_IF_EMPTY:-true}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    image: ${IMAGE_PREFIX:-talago-royal}/frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   mysql-data:
+  uploads:

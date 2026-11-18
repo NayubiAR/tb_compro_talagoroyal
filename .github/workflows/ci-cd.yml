@@ -1,0 +1,200 @@
+name: CI/CD
+
+# CI  : setiap push & pull request → unit test, analisis Flutter, build image Docker,
+#       lalu smoke test end-to-end terhadap stack Docker yang sesungguhnya.
+# CD  : push ke main / tag v* → image dipublikasikan ke GitHub Container Registry (ghcr.io),
+#       lalu (opsional) deploy otomatis ke server via SSH bila variabel DEPLOY_HOST diisi.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.44.1
+
+jobs:
+  backend-test:
+    name: Backend · unit test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma validate
+        env:
+          DATABASE_URL: mysql://root:@127.0.0.1:3306/talago_royal
+      - run: npm test
+
+  frontend-test:
+    name: Frontend · analyze
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      # Info/deprecation tidak menggagalkan build; error & warning tetap menggagalkan.
+      - run: flutter analyze --no-fatal-infos
+
+  e2e:
+    name: Docker · smoke test end-to-end
+    needs: [backend-test, frontend-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image backend
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          load: true
+          tags: talago-royal/backend:ci
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - name: Build image frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          load: true
+          build-args: FLUTTER_VERSION=${{ env.FLUTTER_VERSION }}
+          tags: talago-royal/frontend:ci
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+      - name: Jalankan stack (MySQL, Redis, backend, frontend)
+        run: docker compose up -d --no-build --wait --wait-timeout 300
+        env:
+          IMAGE_TAG: ci
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Smoke test lewat Nginx (HTTP + WebSocket + Redis Pub/Sub)
+        working-directory: backend
+        run: |
+          npm ci
+          npm run smoke
+        env:
+          SMOKE_BASE_URL: http://localhost:8080
+      - name: Log kontainer (bila gagal)
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+        env:
+          IMAGE_TAG: ci
+      - name: Bersihkan
+        if: always()
+        run: docker compose down -v
+        env:
+          IMAGE_TAG: ci
+
+  publish:
+    name: Publish image · ${{ matrix.service }}
+    needs: e2e
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Nama image (huruf kecil)
+        id: prefix
+        run: echo "value=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.prefix.outputs.value }}/${{ matrix.service }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service }}
+          push: true
+          build-args: FLUTTER_VERSION=${{ env.FLUTTER_VERSION }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deploy:
+    name: Deploy ke server
+    needs: publish
+    # Aktif hanya bila Repository variable DEPLOY_HOST sudah diisi (lihat docs/CARA_MENJALANKAN.md).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_HOST != ''
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Siapkan variabel
+        id: vars
+        run: |
+          {
+            echo "prefix=ghcr.io/${GITHUB_REPOSITORY,,}"
+            echo "tag=sha-${GITHUB_SHA::7}"
+            echo "path=${{ vars.DEPLOY_PATH || '~/talago-royal' }}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Salin docker-compose.yml ke server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.DEPLOY_HOST }}
+          username: ${{ vars.DEPLOY_USER }}
+          port: ${{ vars.DEPLOY_PORT || 22 }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: docker-compose.yml
+          target: ${{ steps.vars.outputs.path }}
+      - name: Tarik image baru & restart
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_PREFIX: ${{ steps.vars.outputs.prefix }}
+          IMAGE_TAG: ${{ steps.vars.outputs.tag }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_PATH: ${{ steps.vars.outputs.path }}
+        with:
+          host: ${{ vars.DEPLOY_HOST }}
+          username: ${{ vars.DEPLOY_USER }}
+          port: ${{ vars.DEPLOY_PORT || 22 }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: IMAGE_PREFIX,IMAGE_TAG,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
+          script: |
+            set -e
+            cd "$DEPLOY_PATH"
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker compose pull backend frontend
+            docker compose up -d --no-build --remove-orphans
+            docker image prune -f
+            docker compose ps

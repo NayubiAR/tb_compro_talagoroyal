@@ -8,7 +8,18 @@ Implementasi proposal Computing Project **Talago Royal** (Telkom University, 202
 | **Portal B2B** | Pendaftaran & verifikasi mitra, katalog tertutup + harga tiering, Quick PO bergaya spreadsheet (tempel dari Excel), faktur PDF otomatis, pelacakan piutang (Lunas / Jatuh Tempo) |
 | **Cloud Printing** | Unggah PDF/Word, hitung halaman otomatis, konfigurasi cetak + kalkulasi biaya, pembayaran QRIS (Midtrans), antrean real-time (Redis Pub/Sub → WebSocket), layar monitor antrean |
 
-Dokumentasi arsitektur, keputusan desain, dan saran pengembangan: **[docs/ARSITEKTUR.md](docs/ARSITEKTUR.md)**.
+## Cara tercepat: Docker
+
+Cukup pasang **Docker Desktop**, lalu:
+
+```bash
+docker compose up -d --build
+```
+
+Buka <http://localhost:8080> dan login dengan akun demo di bawah. Data demo terisi otomatis.
+
+📘 Panduan lengkap untuk tim (Docker, pengembangan manual, alur Git, CI/CD & deploy): **[docs/CARA_MENJALANKAN.md](docs/CARA_MENJALANKAN.md)**
+🏗️ Arsitektur, keputusan desain, dan saran pengembangan: **[docs/ARSITEKTUR.md](docs/ARSITEKTUR.md)**
 
 ## Struktur repositori
 
@@ -25,9 +36,9 @@ docs/       Dokumen arsitektur
 - MySQL 8 (mis. bawaan **Laragon**) — atau PostgreSQL (lihat docs)
 - Redis 5+ (bawaan Laragon) — *opsional*, tanpa Redis event bus otomatis memakai mode memori
 
-> Belum punya Laragon? `docker compose up -d` di root repo menjalankan MySQL (port 3316) & Redis.
+> Belum punya Laragon? `docker compose up -d mysql redis` menjalankan MySQL (port 3317, password `talago_root`) & Redis (port 6380) saja.
 
-## Menjalankan secara lokal
+## Menjalankan secara manual (pengembangan)
 
 ### 1. Backend
 
